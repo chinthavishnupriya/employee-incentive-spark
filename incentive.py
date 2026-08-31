@@ -73,7 +73,11 @@ broadcast_config = spark.sparkContext.broadcast(
     incentive_config
 )
 
+# ==========================================
+# 5.1 Create Accumulator
+# ==========================================
 
+not_eligible_accumulator = spark.sparkContext.accumulator(0)
 # ==========================================
 # 6. Calculate Employee Incentive
 # ==========================================
@@ -85,9 +89,12 @@ def calculate_incentive(row):
     if row["total_sales_3months"] >= config["minimum_sales"]:
         status = "Eligible"
         incentive = config["incentive_amount"]
+
     else:
         status = "Not Eligible"
         incentive = 0
+
+        not_eligible_accumulator.add(1)
 
     return (
         row["empId"],
@@ -96,8 +103,6 @@ def calculate_incentive(row):
         status,
         incentive
     )
-
-
 # ==========================================
 # 7. Apply Function Using RDD
 # ==========================================
@@ -120,10 +125,14 @@ result_df = spark.createDataFrame(
     ]
 )
 
+# Cache the result so the RDD is not recomputed
+result_df.cache()
+
+# Materialize the cache
+result_df.count()
+
 print("Final Incentive Result:")
 result_df.show()
-
-
 # ==========================================
 # 9. Separate Eligible Employees
 # ==========================================
@@ -192,10 +201,9 @@ print("       INCENTIVE SUMMARY")
 print("===================================")
 print("Eligible employees     :", eligible_count)
 print("Not eligible employees :", not_eligible_count)
+print("Not eligible (Accumulator):", not_eligible_accumulator.value)
 print("Total incentive paid   : ₹", total_incentive)
 print("===================================")
-
-
 # ==========================================
 # 14. Stop Spark
 # ==========================================
